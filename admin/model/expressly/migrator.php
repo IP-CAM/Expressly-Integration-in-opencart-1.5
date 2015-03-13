@@ -1,4 +1,5 @@
 <?php
+require_once DIR_SYSTEM.'helper/expressly.php';
 
 /**
  * Modell class for Expressly Migrator related functions
@@ -7,8 +8,6 @@
  *
  */
 class ModelExpresslyMigrator extends Model {
-	
-    const SERVLET_URL = "https://buyexpressly.com/expresslymod";
     
     /**
      * Updates the module passwrd
@@ -17,12 +16,25 @@ class ModelExpresslyMigrator extends Model {
      */
     public function updateModulePassword($merchantUrl, $newPass) {
     	$success = true;
+    	
+    	$newPass = stripslashes($newPass);
+    	$newPass = str_replace('"', "", $newPass);
+    	$newPass = str_replace("'", "", $newPass);
+    	
     	if(!$this->sendNewModulePassword($merchantUrl, $this->getAuthToken(), $newPass)) {
     		$success = false;
     	} else {
     		$this->updateModulePasswordInDatabase($newPass);
     	}
     	return $success;
+    }
+    
+    /**
+     * Updates the redirect destination.
+     * @param unknown $newDestination is the new destination to redirect the user
+     */
+    public function updateRedirectDestination($newDestination) {
+    	$this->db->query("UPDATE " . DB_PREFIX . "expressly_migrator_options SET option_value = '".$newDestination."' WHERE option_name = 'redirect_destination'");
     }
     
 	/**
@@ -32,7 +44,7 @@ class ModelExpresslyMigrator extends Model {
 	    try {
     	    $this->db->query("SELECT option_value FROM " . DB_PREFIX . "expressly_migrator_options WHERE option_name = 'version'");
 	    } catch( Exception $e) {
-	        $password = md5(uniqid(rand(), true));
+	        $password = htmlspecialchars(md5(uniqid(rand(), true)));
 	        
 	        $this->sendInitialPassword($merchantUrl, $password);
 	        
@@ -46,41 +58,45 @@ class ModelExpresslyMigrator extends Model {
 	        $this->db->query("INSERT INTO " . DB_PREFIX . "expressly_migrator_options VALUES (1,'version','0.1.0');");
             $this->db->query("INSERT INTO " . DB_PREFIX . "expressly_migrator_options VALUES (2,'module_password','".$password."');");
             $this->db->query("INSERT INTO " . DB_PREFIX . "expressly_migrator_options VALUES (3,'post_checkout_box','false');");
-            $this->db->query("INSERT INTO " . DB_PREFIX . "expressly_migrator_options VALUES (4,'redirect_to_checkout','true');");
+            $this->db->query("INSERT INTO " . DB_PREFIX . "expressly_migrator_options VALUES (4,'redirect_enabled','true');");
             $this->db->query("INSERT INTO " . DB_PREFIX . "expressly_migrator_options VALUES (5,'redirect_to_login','true');");
+            $this->db->query("INSERT INTO " . DB_PREFIX . "expressly_migrator_options VALUES (6,'redirect_destination','index.php?route=checkout/cart');");
 	    }
 	}
 	
 	/**
 	 * Getter of redirect to checkout option.
 	 */
-	public function isRedirectToCheckoutEnabled() {
-		$query = $this->db->query("SELECT option_value FROM " . DB_PREFIX . "expressly_migrator_options WHERE option_name = 'redirect_to_checkout'");
-		return "true" == $query->row['option_value'];
+	public function isRedirectEnabled() {
+		return ExpresslyHelper::isRedirectEnabled($this->db);
 	}
 	
 	/**
 	 * Getter of redirect to login option.
 	 */
 	public function isRedirectToLoginEnabled() {
-		$query = $this->db->query("SELECT option_value FROM " . DB_PREFIX . "expressly_migrator_options WHERE option_name = 'redirect_to_login'");
-		return "true" == $query->row['option_value'];
+		return ExpresslyHelper::isRedirectToLoginEnabled($this->db);
 	}
 	
 	/**
 	 * Getter of post checkout box option.
 	 */
 	public function isPostCheckoutBoxEnabled() {
-		$query = $this->db->query("SELECT option_value FROM " . DB_PREFIX . "expressly_migrator_options WHERE option_name = 'post_checkout_box'");
-		return "true" == $query->row['option_value'];
+		return ExpresslyHelper::isPostCheckoutBoxEnabled($this->db);
 	}
 	
 	/**
 	 * Getter of the authentication token
 	 */
 	public function getAuthToken(){
-		$query = $this->db->query("SELECT option_value FROM " . DB_PREFIX . "expressly_migrator_options WHERE option_name = 'module_password'");
-		return $query->row['option_value'];
+		return ExpresslyHelper::getAuthToken($this->db);
+	}
+	
+	/**
+	 * Getter of the redirect destination string
+	 */
+	public function getRedirectDestination(){
+		return ExpresslyHelper::getRedirectDestination($this->db);
 	}
 	
 	/**
@@ -108,7 +124,7 @@ class ModelExpresslyMigrator extends Model {
 		);
 	
 		$context = stream_context_create ( $options );
-		return "ok" == file_get_contents (self::SERVLET_URL."/updateModulePassword", false, $context );
+		return "ok" == file_get_contents (ExpresslyHelper::SERVLET_URL."/updateModulePassword", false, $context );
 	}
 	
 	/**
@@ -130,7 +146,7 @@ class ModelExpresslyMigrator extends Model {
 	    );
 	
 	    $context = stream_context_create ( $options );
-	    file_get_contents (self::SERVLET_URL."/saveModulePassword", false, $context );
+	    file_get_contents (ExpresslyHelper::SERVLET_URL."/saveModulePassword", false, $context );
 	}
 }
 ?>

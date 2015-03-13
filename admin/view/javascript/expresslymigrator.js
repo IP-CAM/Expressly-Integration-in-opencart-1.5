@@ -1,31 +1,12 @@
-var newCustomerName = "";
-var newDiscount = "";
-
-/**
- * Creates a CORS request
- */
-function createCORSRequest(method, url) {
-	var xhr = new XMLHttpRequest();
-	
-	if (typeof XDomainRequest != "undefined") {
-		xhr = new XDomainRequest();
-		xhr.open(method, url);
-	} else if ("withCredentials" in xhr) {
-		xhr.open(method, url, true);
-	} else {
-		xhr = null;
-	}
-	return xhr;
-}
-
 /**
  * Creates a call
  */
 function createCall(method, url, callbackOnSuccess, callbackOnFail, authHeader, postMarameters) {
-	var xhr = createCORSRequest(method, url);
-
+	var xhr = new XMLHttpRequest();
+	xhr.open(method, url, true);
+	
 	if (!xhr) {
-		throw new Error('CORS not supported');
+		throw new Error('Failed to create AJAX request');
 	}
 
 	xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
@@ -57,22 +38,18 @@ function expresslyTrigger() {
 	var hashParameters = location.href.split("#")[1];
 
 	if (hashParameters) {
+		document.querySelector("#expressly_popup_page .cancel").style.display = "none";
+		document.querySelector("#expressly_popup_page .ok").style.display = "none";
+		document.querySelector("#expressly_popup_page .expressly_loader").style.display = "block";
 		
-		createCall("GET", baseUrl + "index.php?route=module/expresslymigrator/migration&data=" + encodeURIComponent(hashParameters), function(xhr) {
+		var subscribeCheckbox = document.getElementById('subscribeNewsletter');
+		var subscribe = subscribeCheckbox ? subscribeCheckbox.checked : true;
+		
+		createCall("GET", baseUrl + "index.php?route=module/expresslymigrator/migration&data=" + hashParameters + "&subscribeNewsLetter=" + subscribe, function(xhr) {
 			var responseText = xhr.responseText;
 			if (xhr.readyState == 4 && xhr.status == 200) {
-
-				var responseArray = xhr.responseText.split(";");
-				
-				// Used by the offer frame logic to update the content.
-				document.body.innerHTML += '<input type="hidden" id="expresslyCr" name="expresslyCr" value="' + responseArray[0] + '"/>';
-				
-				newCustomerName = responseArray[0];
-				newDiscount = responseArray[1];
-
-				hideWhiteOverlay();
+				redirectUser();
 			} else if(xhr.readyState == 4 && xhr.status == 204) {
-				hideWhiteOverlay();
 				alert("Migration error - User does not exist in A");
 			} else if(xhr.readyState == 4 && xhr.status == 409) {
 				if(isRedirectToLoginEnabled) {
@@ -80,23 +57,29 @@ function expresslyTrigger() {
 					setCookie("expresslylogindata", loginDataArray[0]);
 					
 					createCall("GET", baseUrl + "index.php?route=module/expresslymigrator/addProductAndCoupon&user_email="+loginDataArray[0]+"&product_id="+loginDataArray[1]+"&coupon_code="+loginDataArray[2], function() {
-						hideWhiteOverlay();
-						alert("You already have an account here.");
-						
-						document.getElementById('expresslyLoginHelperEmail').value = loginDataArray[0];
-						document.getElementById('expresslyLoginHelperForm').submit();
+						alert("You are already registered. Please login with you username and password.");
+						window.location.replace(baseUrl + "index.php?route=account/login");
 			        });
 				} else {
-					hideWhiteOverlay();
-					alert("You already have an account here.");
+					alert("You are already registered. Please login with you username and password.");
 				}
+			} else if(xhr.readyState == 4 && xhr.status == 500) {
+				if(xhr.responseText != "") {
+					alert("Oops, something went wrong on our side. You can still access the amazing offer with this coupon code " + xhr.responseText + ".");
+				} else {
+					alert("Oops, something went wrong on our side. We are working hard to fix it. You can still shop at this website.");
+				}
+				document.querySelector("#expressly_popup_page .cancel").style.display = "block";
+				document.querySelector("#expressly_popup_page .expressly_loader").style.display = "none";
 			} else {
-				hideWhiteOverlay();
-				alert("Migration fail");
+				alert("Oops, something went wrong on our side. We are working hard to fix it. You can still shop at this website.");
+				document.querySelector("#expressly_popup_page .cancel").style.display = "block";
+				document.querySelector("#expressly_popup_page .expressly_loader").style.display = "none";
 			}
 		}, function(xhr) {
-			hideWhiteOverlay();
-			alert("Migration fail");
+			alert("Oops, something went wrong on our side. We are working hard to fix it. You can still shop at this website.");
+			document.querySelector("#expressly_popup_page .cancel").style.display = "block";
+			document.querySelector("#expressly_popup_page .expressly_loader").style.display = "none";
 		});
 	}
 }
@@ -105,26 +88,16 @@ $(document).ready(function(){
 	if(window.location.hash != "") {
 		popupOpen();
 	}
-	
-	expresslyTrigger();
 });
 
-
 /**
- * Event handler for iframe loaded
+ * Redirects the user to the desired page
  */
-function offerIframeLoaded() {
-	if(newCustomerName != "" && newDiscount != "") {
-		document.getElementById("expresslyOfferFrame").contentWindow.postMessage('updateUserData:' + newCustomerName + ';' + newDiscount + '%', '*');
-	}
-}
-
-/**
- * Redirects to the checkout page
- */
-function redirectToCheckout() {
-	if(isRedirectToCheckoutEnabled) {
-		window.location.replace(baseUrl + "index.php?route=checkout/checkout");
+function redirectUser() {
+	if(isRedirectEnabled) {
+		window.location.replace(baseUrl + redirectDestination);
+	} else {
+		window.location.replace(baseUrl);
 	}
 }
 
@@ -138,4 +111,18 @@ function setCookie(name, value) {
 	d.setTime(d.getTime() + (10 * 1000));
 	var expires = "expires=" + d.toUTCString();
 	document.cookie = name + "=" + value + "; " + expires;
+}
+
+/**
+ * Opens the terms and conditions window.
+ */
+function openTerms() {
+	window.open(baseUrl + "terms-and-conditions");
+}
+
+/**
+ * Opens the privacy-policy
+ */
+function openPrivacy() {
+	window.open(baseUrl + "privacy-policy");
 }

@@ -36,8 +36,12 @@
           <tbody id="module-row">
             <tr>
               <td>
-				<input type="checkbox" name="redirect-to-checkout" onclick="updateRedirectToCheckout(this, '<?php echo $token; ?>')" <?php if($redirectToCheckout == true) { ?>checked="checked"<?php } ?> /> Redirect incoming customers to checkout
-	            <br />
+                <form action="<?php echo $action; ?>" method="post" enctype="multipart/form-data" id="form" onsubmit="return checkNewRedirectAddress();">             
+	                <input type="checkbox" name="redirect-users" onclick="updateRedirectEnabled(this)" <?php if($redirectEnabled) { ?>checked="checked"<?php } ?> /> Redirect users? <?php echo str_replace("index.php/", "", $base); ?><input type="text" id="redirect-destination-field" name="redirect-destination" value="<?php echo $redirectDestination; ?>"  <?php if(!$redirectEnabled) { ?>disabled="disabled"<?php } ?>/><a id="userRedirectionTestLink" href="JavaScript:testUserRedirection();" <?php if(!$redirectEnabled) { ?>style="display:none"<?php } ?>>Test redirection</a>
+	            	<br />
+	                <input class="expresslyLargeButton" type="submit" name="save" value="Save" />
+	            </form>
+	            <br /><br />
 	            <input type="checkbox" name="post-checkout-box" onclick="updatePostCheckoutBox(this)" <?php if($postCheckoutBox == true) { ?>checked="checked"<?php } ?> disabled="disabled" /> Include promo recommendation on order page
 	            <br />
 	            <input type="checkbox" name="redirect-to-login" onclick="updateRedirectToLogin(this)" <?php if($redirectToLogin == true) { ?>checked="checked"<?php } ?> /> Redirect existing customers to login
@@ -99,8 +103,7 @@
 	            (this will prevent Expressly to connect to your store, if the password is not communicated back)
 	            <br /><br />
 	            <form action="<?php echo $action; ?>" method="post" enctype="multipart/form-data" id="form" onsubmit="return confirm('The new password will be sent to expressly')">
-	                <input name="form_key" type="hidden" value="" />
-	                <input class="expresslyLongInput" type="text" name="modulePass" value="<?php echo $modulePass; ?>" />
+	                <input class="expresslyLongInput" type="text" name="modulePass" value="<?php echo $pureModulePass; ?>" />
 	                <br /><br />
 	                <input class="expresslyLargeButton" type="submit" name="save" value="Save" />
 	            </form>

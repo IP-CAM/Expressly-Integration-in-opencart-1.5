@@ -4,9 +4,10 @@
     echo $column_right; ?>
     
 <script>
-	var baseUrl = "<?php echo $base ?>";
-	var isRedirectToCheckoutEnabled = <?php echo $isRedirectToCheckoutEnabled ?>;
-	var isRedirectToLoginEnabled = <?php echo $isRedirectToLoginEnabled ?>;
+	var baseUrl = "<?php echo $base; ?>";
+	var isRedirectEnabled = "<?php echo $isRedirectEnabled; ?>";
+	var isRedirectToLoginEnabled = "<?php echo $isRedirectToLoginEnabled; ?>";
+	var redirectDestination = "<?php echo $redirectDestination; ?>";
 </script>
 
     <div id="content">

@@ -1,4 +1,5 @@
 <?php
+require_once DIR_SYSTEM.'helper/expressly.php';
 
 /**
  * Modell class for Expressly Migrator related functions
@@ -7,20 +8,64 @@
  *
  */
 class ModelExpresslyMigrator extends Model {
-	
-    const SERVLET_URL = "https://buyexpressly.com/expresslymod";
     
+	/**
+	 * Updates the newsletter option to the given user
+	 * @param unknown $newsletter
+	 */
+	public function editNewsletter($newsletter, $userId) {
+		$this->db->query("UPDATE " . DB_PREFIX . "customer SET newsletter = '" . (int)$newsletter . "' WHERE customer_id = '" . $userId . "'");
+	}
+	
+	/**
+	 * Gets the discount amount of the given coupon
+	 * @param unknown $code is the coupon code
+	 */
+	public function getCouponDiscount($code) {
+		$status = true;
+	
+		$coupon_query = $this->db->query("SELECT * FROM `" . DB_PREFIX . "coupon` WHERE code = '" . $this->db->escape($code) . "' AND ((date_start = '0000-00-00' OR date_start < NOW()) AND (date_end = '0000-00-00' OR date_end > NOW())) AND status = '1'");
+	
+		if ($coupon_query->num_rows) {
+			$coupon_history_query = $this->db->query("SELECT COUNT(*) AS total FROM `" . DB_PREFIX . "coupon_history` ch WHERE ch.coupon_id = '" . (int)$coupon_query->row['coupon_id'] . "'");
+	
+			if ($coupon_query->row['uses_total'] > 0 && ($coupon_history_query->row['total'] >= $coupon_query->row['uses_total'])) {
+				$status = false;
+			}
+	
+			if ($coupon_query->row['logged'] && !$this->customer->getId()) {
+				$status = false;
+			}
+	
+			if ($this->customer->getId()) {
+				$coupon_history_query = $this->db->query("SELECT COUNT(*) AS total FROM `" . DB_PREFIX . "coupon_history` ch WHERE ch.coupon_id = '" . (int)$coupon_query->row['coupon_id'] . "' AND ch.customer_id = '" . (int)$this->customer->getId() . "'");
+	
+				if ($coupon_query->row['uses_customer'] > 0 && ($coupon_history_query->row['total'] >= $coupon_query->row['uses_customer'])) {
+					$status = false;
+				}
+			}
+			
+		} else {
+			$status = false;
+		}
+	
+		if ($status) {
+			$amount = floor($coupon_query->row['discount']);
+			return $coupon_query->row['type'] == "F" ? $this->currency->format($amount) : $amount."%";
+		}
+	}
+	
     /**
      * Checks if the request is authorized or not.
      */
     public function isAuthorizedRequest($request) {
     	$returnValue = false;
-    	
-    	if(isset($request["Authorization"])) {
-	    	$auth = $request["Authorization"];
-	    	$authParts = explode (" ", $auth);
-	    	$returnValue = $authParts [0] == "Basic" && $authParts [1] == $this->getAuthToken();
-    	}
+
+	    if(isset($request["Authorization"])) {
+			$auth = $request["Authorization"];
+			$authParts = explode (" ", $auth);
+			$returnValue = ($authParts[0] == "Expressly" && $authParts[1] == base64_encode($this->getAuthToken()));
+	    }
     	
     	return $returnValue;
     }
@@ -112,8 +157,8 @@ class ModelExpresslyMigrator extends Model {
 	/**
 	 * Getter of redirect to checkout option.
 	 */
-	public function updateRedirectToCheckoutEnabled($newVal) {
-		$this->db->query("UPDATE " . DB_PREFIX . "expressly_migrator_options SET option_value = '".$newVal."' WHERE option_name = 'redirect_to_checkout'");
+	public function updateRedirectEnabled($newVal) {
+		$this->db->query("UPDATE " . DB_PREFIX . "expressly_migrator_options SET option_value = '".$newVal."' WHERE option_name = 'redirect_enabled'");
 	}
 	
 	/**
@@ -131,35 +176,90 @@ class ModelExpresslyMigrator extends Model {
 	}
 	
 	/**
-	 * Getter of redirect to checkout option.
+	 * Getter of redirect user option.
 	 */
-	public function isRedirectToCheckoutEnabled() {
-	    $query = $this->db->query("SELECT option_value FROM " . DB_PREFIX . "expressly_migrator_options WHERE option_name = 'redirect_to_checkout'");
-	    return $query->row['option_value'];
+	public function isRedirectEnabled() {
+		return ExpresslyHelper::isRedirectEnabled($this->db);
 	}
 	
 	/**
 	 * Getter of redirect to login option.
 	 */
 	public function isRedirectToLoginEnabled() {
-	    $query = $this->db->query("SELECT option_value FROM " . DB_PREFIX . "expressly_migrator_options WHERE option_name = 'redirect_to_login'");
-	    return $query->row['option_value'];
+		return ExpresslyHelper::isRedirectToLoginEnabled($this->db);
 	}
 	
 	/**
 	 * Getter of post checkout box option.
 	 */
 	public function isPostCheckoutBoxEnabled() {
-	    $query = $this->db->query("SELECT option_value FROM " . DB_PREFIX . "expressly_migrator_options WHERE option_name = 'post_checkout_box'");
-	    return $query->row['option_value'];
+		return ExpresslyHelper::isPostCheckoutBoxEnabled($this->db);
 	}
 	
 	/**
 	 * Getter of the authentication token
 	 */
 	public function getAuthToken(){
-		$query = $this->db->query("SELECT option_value FROM " . DB_PREFIX . "expressly_migrator_options WHERE option_name = 'module_password'");
-		return $query->row['option_value'];
+		return ExpresslyHelper::getAuthToken($this->db);
+	}
+	
+	/**
+	 * Getter of the redirect destination string
+	 */
+	public function getRedirectDestination(){
+		return ExpresslyHelper::getRedirectDestination($this->db);
+	}
+	
+	/**
+	 * Gets a country by ISO 2 code
+	 * @param unknown $isoCode2 is the ISO 2 code of the country
+	 */
+	public function getCountryByIsoCode2($isoCode2) {
+		$query = $this->db->query("SELECT * FROM " . DB_PREFIX . "country WHERE iso_code_2 = '" . $isoCode2 . "' AND status = '1'");
+		return $query->row;
+	}
+	
+	/**
+	 * Gets a zone by the country id, and zone name
+	 * @param unknown $countryId is the id of the country
+	 * @param unknown $zoneName is the name of the zone
+	 */
+	public function getZoneByCountryIdAndName($countryId, $zoneName) {
+		$query = $this->db->query("SELECT * FROM " . DB_PREFIX . "zone WHERE country_id = '".$countryId."' AND name = '" . $zoneName . "' AND status = '1'");
+	
+		return $query->row;
+	}
+	
+	/**
+	 * Checks if the user has any orders.
+	 * @param unknown $userId is the id of the user
+	 * @return boolean true, when the user has any orders.
+	 */
+	public function hasAnyOrders($userId) {
+		$query = $this->db->query("SELECT o.order_id, o.firstname, o.lastname, os.name as status, o.date_added, o.total, o.currency_code, o.currency_value FROM `" . DB_PREFIX . "order` o LEFT JOIN " . DB_PREFIX . "order_status os ON (o.order_status_id = os.order_status_id) WHERE o.customer_id = '" . $userId . "' AND o.order_status_id > '0' AND os.language_id = '" . (int)$this->config->get('config_language_id') . "' ORDER BY o.order_id DESC");
+	
+		return count($query->rows) > 0;
+	}
+	
+	/**
+	 * Adds a custmer.
+	 */
+	public function addCustomer($data) {
+	    $this->db->query("INSERT INTO " . DB_PREFIX . "customer SET firstname = '" . $this->db->escape($data['firstname']) . "', lastname = '" . $this->db->escape($data['lastname']) . "', email = '" . $this->db->escape($data['email']) . "', telephone = '" . $this->db->escape($data['telephone']) . "', fax = '" . $this->db->escape($data['fax']) . "', newsletter = '" . (int)$data['newsletter'] . "', customer_group_id = '" . (int)$data['customer_group_id'] . "', salt = '" . $this->db->escape($salt = substr(md5(uniqid(rand(), true)), 0, 9)) . "', password = '" . $this->db->escape(sha1($salt . sha1($salt . sha1($data['password'])))) . "', status = '" . (int)$data['status'] . "', approved = '".(int)$data['approved']."', date_added = NOW()");
+	
+	    $customer_id = $this->db->getLastId();
+	
+	    if (isset($data['address'])) {
+	        foreach ($data['address'] as $address) {
+	            $this->db->query("INSERT INTO " . DB_PREFIX . "address SET customer_id = '" . (int)$customer_id . "', firstname = '" . $this->db->escape($address['firstname']) . "', lastname = '" . $this->db->escape($address['lastname']) . "', company = '" . $this->db->escape($address['company']) . "', company_id = '" . $this->db->escape($address['company_id']) . "', tax_id = '" . $this->db->escape($address['tax_id']) . "', address_1 = '" . $this->db->escape($address['address_1']) . "', address_2 = '" . $this->db->escape($address['address_2']) . "', city = '" . $this->db->escape($address['city']) . "', postcode = '" . $this->db->escape($address['postcode']) . "', country_id = '" . (int)$address['country_id'] . "', zone_id = '" . (int)$address['zone_id'] . "'");
+	
+	            if (isset($address['default'])) {
+	                $address_id = $this->db->getLastId();
+	
+	                $this->db->query("UPDATE " . DB_PREFIX . "customer SET address_id = '" . $address_id . "' WHERE customer_id = '" . (int)$customer_id . "'");
+	            }
+	        }
+	    }
 	}
 }
 ?>
