@@ -337,13 +337,18 @@ class ControllerModuleExpresslymigrator extends Controller {
 		$this->load->model('account/customer');
 		
 		if ($this->model_expressly_migrator->isAuthorizedRequest(getallheaders())) {
+			$totalValue = 0;
 			$customer = $this->model_account_customer->getCustomerByEmail($this->request->get['user_email']);
-            
-            if($customer != null && $customer != "") {
-			  echo $this->model_expressly_migrator->hasAnyOrders($customer['customer_id']) ? 1 : 0;
-			} else {
-			    echo 0;
+			
+			if($customer != null) {
+				$orders = $this->model_expressly_migrator->getUserOrders($customer['customer_id']);
+				
+				foreach($orders as $order) {
+					$totalValue = $order['total'];
+					break;
+				}
 			}
+			echo $totalValue;
 		}
 	}
 	

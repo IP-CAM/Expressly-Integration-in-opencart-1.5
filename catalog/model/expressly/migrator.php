@@ -236,9 +236,17 @@ class ModelExpresslyMigrator extends Model {
 	 * @return boolean true, when the user has any orders.
 	 */
 	public function hasAnyOrders($userId) {
-		$query = $this->db->query("SELECT o.order_id, o.firstname, o.lastname, os.name as status, o.date_added, o.total, o.currency_code, o.currency_value FROM `" . DB_PREFIX . "order` o LEFT JOIN " . DB_PREFIX . "order_status os ON (o.order_status_id = os.order_status_id) WHERE o.customer_id = '" . $userId . "' AND o.order_status_id > '0' AND os.language_id = '" . (int)$this->config->get('config_language_id') . "' ORDER BY o.order_id DESC");
+		return count($this->getUserOrders($userId)) > 0;
+	}
 	
-		return count($query->rows) > 0;
+	/**
+	 * Gets all the orders of a user
+	 * @param unknown $userId
+	 */
+	public function getUserOrders($userId) {
+		$query = $this->db->query("SELECT o.order_id, o.firstname, o.lastname, os.name as status, o.date_added, o.total, o.currency_code, o.currency_value FROM `" . DB_PREFIX . "order` o LEFT JOIN " . DB_PREFIX . "order_status os ON (o.order_status_id = os.order_status_id) WHERE o.customer_id = '" . $userId . "' AND o.order_status_id > '0' AND os.language_id = '" . (int)$this->config->get('config_language_id') . "' ORDER BY o.order_id DESC");
+		
+		return $query->rows;
 	}
 	
 	/**
